@@ -1,12 +1,20 @@
 package systray
 
-import "fmt"
+import (
+	"fmt"
+	"sort"
+)
 
 // Icon represents icon of the system tray item.
 type Icon struct {
 	Width  int32
 	Height int32
 	Bytes  []byte
+}
+
+// IconSet represents a set of resolutions for an icon.
+type IconSet struct {
+	icons []*Icon
 }
 
 // NewIconFromDBusPixmap returns a new [Icon] from D-Bus pixmap.
@@ -45,4 +53,68 @@ func NewIconFromDBusPixmap(pixmap any) (*Icon, error) {
 		Height: height,
 		Bytes:  bytes,
 	}, nil
+}
+
+// NewIconSetFromDBusProperty returns a new [IconSet] from value of D-Bus icon
+// properties, such as
+//   - IconPixmap
+//   - OverlayIconPixmap
+//   - AttentionIconPixmap
+//
+// Format of value is as follows
+//
+//	[<icon>]
+//
+// See [NewIconFromDBusPixmap] for details about <icon> format.
+func NewIconSetFromDBusProperty(value any) (*IconSet, error) {
+	pixmaps, ok := value.([][]any)
+	if !ok {
+		return nil, fmt.Errorf("invalid property format: expected a slice of slices")
+	}
+
+	icons := make([]*Icon, 0, len(pixmaps))
+
+	for _, pixmap := range pixmaps {
+		icon, err := NewIconFromDBusPixmap(pixmap)
+		if err != nil {
+			fmt.Println(err)
+			continue
+		}
+
+		icons = append(icons, icon)
+	}
+
+	sort.Slice(icons, func(i, j int) bool {
+		a := icons[i]
+		b := icons[j]
+
+		return a.Width*a.Height < b.Width*b.Height
+	})
+
+	return &IconSet{
+		icons: icons,
+	}, nil
+}
+
+// GetAll returns all resolutions in the set.
+func (is *IconSet) GetAll() []*Icon {
+	return is.icons
+}
+
+// GetSmallest returns the smallest icon in the set.
+func (is *IconSet) GetSmallest() *Icon {
+	if len(is.icons) == 0 {
+		return nil
+	}
+
+	return is.icons[0]
+}
+
+// GetLargest returns the largest icon in the set.
+func (is *IconSet) GetLargest() *Icon {
+	if len(is.icons) == 0 {
+		return nil
+	}
+
+	return is.icons[len(is.icons)-1]
 }

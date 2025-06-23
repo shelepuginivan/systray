@@ -168,6 +168,70 @@ func NewItemFromDBusSignal(conn *dbus.Conn, signal *dbus.Signal) (*Item, error) 
 	return NewItem(conn, uniqueName)
 }
 
+// ContextMenu asks the status notifier item to show a context menu.
+//
+// This is typically a consequence of user input, such as mouse right click
+// over the graphical representation of the item.
+//
+// The x and y parameters are in screen coordinates and is to be considered a
+// hint to the item about where to show the context menu.
+func (item *Item) ContextMenu(x, y int) error {
+	return item.object.Call(
+		StatusNotifierItemInterface+".ContextMenu",
+		dbus.Flags(64),
+		x, y,
+	).Err
+}
+
+// Activate asks the status notifier item for activation. The application will
+// perform any task is considered appropriate as an activation request.
+//
+// This is typically a consequence of user input, such as mouse left click over
+// the graphical representation of the item.
+//
+// The x and y parameters are in screen coordinates and is to be considered a
+// hint to the item where to show eventual windows (if any).
+func (item *Item) Activate(x, y int) error {
+	return item.object.Call(
+		StatusNotifierItemInterface+".Activate",
+		dbus.Flags(64),
+		x, y,
+	).Err
+}
+
+// SecondaryActivate is to be considered a secondary and less important form of
+// activation compared to Activate. The application will perform any task is
+// considered appropriate as an activation request.
+//
+// This is typically a consequence of user input, such as mouse middle click
+// over the graphical representation of the item.
+//
+// The x and y parameters are in screen coordinates and is to be considered a
+// hint to the item where to show eventual windows (if any).
+func (item *Item) SecondaryActivate(x, y int) error {
+	return item.object.Call(
+		StatusNotifierItemInterface+".SecondaryActivate",
+		dbus.Flags(64),
+		x, y,
+	).Err
+}
+
+// Scroll emits a scroll event on the status notifier item.
+//
+// This is caused from input such as mouse wheel over the graphical
+// representation of the item.
+//
+// The delta parameter represent the amount of scroll. The orientation
+// parameter represent orientation of the scroll request and its valid values
+// are "horizontal" and "vertical".
+func (item *Item) Scroll(delta int, orientation string) error {
+	return item.object.Call(
+		StatusNotifierItemInterface+".Scroll",
+		dbus.Flags(64),
+		delta, orientation,
+	).Err
+}
+
 // uniqueNameFromDBusSignal retrieves unique name of the StatusNotifierItem
 // service from D-Bus signal.
 func uniqueNameFromDBusSignal(signal *dbus.Signal) (string, error) {

@@ -45,7 +45,13 @@ type Item struct {
 
 // NewItem returns new [Item] from its unique D-Bus name.
 func NewItem(conn *dbus.Conn, uniqueName string) (*Item, error) {
-	obj := conn.Object(uniqueName, StatusNotifierItemPath)
+	return NewItemWithObjectPath(conn, uniqueName, StatusNotifierItemPath)
+}
+
+// NewItemWithObjectPath returns new [Item] from its unique D-Bus name and
+// allows to specify path of the D-Bus object.
+func NewItemWithObjectPath(conn *dbus.Conn, uniqueName string, objectPath string) (*Item, error) {
+	obj := conn.Object(uniqueName, dbus.ObjectPath(objectPath))
 
 	// Check whether properties can be retrieved.
 	call := obj.Call(getProperty, dbus.Flags(64), StatusNotifierItemInterface, "Title")
@@ -106,12 +112,12 @@ func NewItem(conn *dbus.Conn, uniqueName string) (*Item, error) {
 // It is intended to be used with signal
 // org.kde.StatusNotifierWatcher.StatusNotifierItemRegistered.
 func NewItemFromDBusSignal(conn *dbus.Conn, signal *dbus.Signal) (*Item, error) {
-	uniqueName, err := uniqueNameFromDBusSignal(signal)
+	uniqueName, objectPath, err := uniqueNameAndPathFromDBusSignal(signal)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve item: %w", err)
 	}
 
-	return NewItem(conn, uniqueName)
+	return NewItemWithObjectPath(conn, uniqueName, objectPath)
 }
 
 // OnUpdate registers callback that runs whenever item properties are updated.
@@ -401,24 +407,32 @@ func (item *Item) updateAttentionIcon() {
 	}
 }
 
-// uniqueNameFromDBusSignal retrieves unique name of the StatusNotifierItem
+// uniqueNameAndPathFromDBusSignal retrieves unique name of the StatusNotifierItem
 // service from D-Bus signal.
-func uniqueNameFromDBusSignal(signal *dbus.Signal) (string, error) {
+func uniqueNameAndPathFromDBusSignal(signal *dbus.Signal) (string, string, error) {
 	if len(signal.Body) < 1 {
-		return "", fmt.Errorf("signal body is empty")
+		return "", "", fmt.Errorf("signal body is empty")
 	}
 
 	itemName, ok := signal.Body[0].(string)
 	if !ok {
-		return "", fmt.Errorf("invalid format of signal body")
+		return "", "", fmt.Errorf("invalid format of signal body")
 	}
 
-	// Format of itemName is "<uniqueName>/StatusNotifierItem",
-	// e.g. :1.185/StatusNotifierItem
-	uniqueName, _, ok := strings.Cut(itemName, "/")
+	return uniqueNameAndPathFromItemName(itemName)
+}
+
+// uniqueNameAndPathFromItemName returns unique name and object path of the
+// StatusNotifierItem service from its item name. The returned object path
+// contains /.
+//
+// Format of item name is "<uniqueName>/<objectPath>",
+// e.g. ":1.185/StatusNotifierItem".
+func uniqueNameAndPathFromItemName(itemName string) (string, string, error) {
+	uniqueName, objectPath, ok := strings.Cut(itemName, "/")
 	if !ok {
-		return "", fmt.Errorf("invalid format of item name")
+		return uniqueName, StatusNotifierItemPath, nil
 	}
 
-	return uniqueName, nil
+	return uniqueName, "/" + objectPath, nil
 }

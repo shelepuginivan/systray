@@ -18,8 +18,11 @@ const getProperty = "org.freedesktop.DBus.Properties.Get"
 //
 // [StatusNotifierItem]: https://www.freedesktop.org/wiki/Specifications/StatusNotifierItem/StatusNotifierItem/
 type Item struct {
+	conn       *dbus.Conn
+	signals    chan *dbus.Signal
 	object     dbus.BusObject
 	uniqueName string
+	onUpdate   func()
 
 	ID       string
 	Title    string
@@ -51,8 +54,11 @@ func NewItem(conn *dbus.Conn, uniqueName string) (*Item, error) {
 	}
 
 	item := Item{
+		conn:       conn,
+		signals:    make(chan *dbus.Signal, 128),
 		object:     obj,
 		uniqueName: uniqueName,
+		onUpdate:   func() {},
 	}
 
 	id, err := obj.GetProperty(StatusNotifierItemInterface + ".Id")
@@ -60,86 +66,14 @@ func NewItem(conn *dbus.Conn, uniqueName string) (*Item, error) {
 		id.Store(&item.ID)
 	}
 
-	title, err := obj.GetProperty(StatusNotifierItemInterface + ".Title")
-	if err == nil {
-		title.Store(&item.Title)
-	}
-
-	tooltip, err := obj.GetProperty(StatusNotifierItemInterface + ".ToolTip")
-	if err == nil {
-		// Format of tooltip is as follows
-		//
-		//  [<icon-name>, <icon>, <tooltip>, <description>]
-		//
-		// We are interested in the 3rd item, as it is a text representation of the
-		// tooltip.
-		value := tooltip.Value().([]any)
-
-		if len(value) >= 3 {
-			tooltipStr, ok := value[2].(string)
-			if ok {
-				item.Tooltip = tooltipStr
-			}
-		}
-	}
-
 	category, err := obj.GetProperty(StatusNotifierItemInterface + ".Category")
 	if err == nil {
 		category.Store(&item.Category)
 	}
 
-	status, err := obj.GetProperty(StatusNotifierItemInterface + ".Status")
-	if err == nil {
-		status.Store(&item.Status)
-	}
-
 	windowID, err := obj.GetProperty(StatusNotifierItemInterface + ".WindowId")
 	if err == nil {
 		windowID.Store(&item.WindowID)
-	}
-
-	iconName, err := obj.GetProperty(StatusNotifierItemInterface + ".IconName")
-	if err == nil {
-		iconName.Store(&item.IconName)
-	}
-
-	iconPixmap, err := obj.GetProperty(StatusNotifierItemInterface + ".IconPixmap")
-	if err == nil {
-		iconset, err := NewIconSetFromDBusProperty(iconPixmap.Value())
-		if err == nil {
-			item.IconPixmap = iconset
-		}
-	}
-
-	overlayIconName, err := obj.GetProperty(StatusNotifierItemInterface + ".OverlayIconName")
-	if err == nil {
-		overlayIconName.Store(&item.OverlayIconName)
-	}
-
-	overlayIconPixmap, err := obj.GetProperty(StatusNotifierItemInterface + ".OverlayIconPixmap")
-	if err == nil {
-		iconset, err := NewIconSetFromDBusProperty(overlayIconPixmap.Value())
-		if err == nil {
-			item.OverlayIconPixmap = iconset
-		}
-	}
-
-	attentionIconName, err := obj.GetProperty(StatusNotifierItemInterface + ".AttentionIconName")
-	if err == nil {
-		attentionIconName.Store(&item.AttentionIconName)
-	}
-
-	attentionIconPixmap, err := obj.GetProperty(StatusNotifierItemInterface + ".AttentionIconPixmap")
-	if err == nil {
-		iconset, err := NewIconSetFromDBusProperty(attentionIconPixmap.Value())
-		if err == nil {
-			item.AttentionIconPixmap = iconset
-		}
-	}
-
-	attentionMovieName, err := obj.GetProperty(StatusNotifierItemInterface + ".AttentionMovieName")
-	if err == nil {
-		attentionMovieName.Store(&item.AttentionMovieName)
 	}
 
 	isMenu, err := obj.GetProperty(StatusNotifierItemInterface + ".ItemIsMenu")
@@ -151,6 +85,18 @@ func NewItem(conn *dbus.Conn, uniqueName string) (*Item, error) {
 	if err == nil {
 		menu.Store(&item.Menu)
 	}
+
+	// Initialize fields that can be updated via signals.
+	item.updateTitle()
+	item.updateTooltip()
+	item.updateStatus()
+	item.updateIcon()
+	item.updateOverlayIcon()
+	item.updateAttentionIcon()
+
+	// Subscribe to update signals.
+	// This is required to update fields when neccessary.
+	item.subscribe()
 
 	return &item, nil
 }
@@ -166,6 +112,25 @@ func NewItemFromDBusSignal(conn *dbus.Conn, signal *dbus.Signal) (*Item, error) 
 	}
 
 	return NewItem(conn, uniqueName)
+}
+
+// OnUpdate registers callback that runs whenever item properties are updated.
+//
+// The following signals with the respective update fields are specified by the
+// protocol:
+//
+//   - NewTitle: updates Title of the item
+//   - NewToolTip: updates Tooltip of the item
+//   - NewStatus: updates Status of the item
+//   - NewIcon: updates IconName and IconPixmap of the item.
+//   - NewOverlayIcon: updates OverlayIconName and OverlayIconPixmap of the item.
+//   - NewAttentionIcon: updates AttentionIconName, AttentionIconPixmap, and
+//     AttentionMovieName of the item.
+//
+// Graphical tray hosts should redraw representation of the item when its
+// OnUpdate callback is called.
+func (item *Item) OnUpdate(callback func()) {
+	item.onUpdate = callback
 }
 
 // ContextMenu asks the status notifier item to show a context menu.
@@ -230,6 +195,210 @@ func (item *Item) Scroll(delta int, orientation string) error {
 		dbus.Flags(64),
 		delta, orientation,
 	).Err
+}
+
+// close removes signal handlers associated with this item.
+//
+// This method must be called when item is being unregistered from the system tray.
+func (item *Item) close() {
+	item.conn.RemoveMatchSignal(
+		dbus.WithMatchInterface(StatusNotifierItemInterface),
+		dbus.WithMatchMember("NewTitle"),
+		dbus.WithMatchSender(item.uniqueName),
+	)
+
+	item.conn.RemoveMatchSignal(
+		dbus.WithMatchInterface(StatusNotifierItemInterface),
+		dbus.WithMatchMember("NewToolTip"),
+		dbus.WithMatchSender(item.uniqueName),
+	)
+
+	item.conn.RemoveMatchSignal(
+		dbus.WithMatchInterface(StatusNotifierItemInterface),
+		dbus.WithMatchMember("NewStatus"),
+		dbus.WithMatchSender(item.uniqueName),
+	)
+
+	item.conn.RemoveMatchSignal(
+		dbus.WithMatchInterface(StatusNotifierItemInterface),
+		dbus.WithMatchMember("NewIcon"),
+		dbus.WithMatchSender(item.uniqueName),
+	)
+
+	item.conn.RemoveMatchSignal(
+		dbus.WithMatchInterface(StatusNotifierItemInterface),
+		dbus.WithMatchMember("NewOverlayIcon"),
+		dbus.WithMatchSender(item.uniqueName),
+	)
+
+	item.conn.RemoveMatchSignal(
+		dbus.WithMatchInterface(StatusNotifierItemInterface),
+		dbus.WithMatchMember("NewAttentionIcon"),
+		dbus.WithMatchSender(item.uniqueName),
+	)
+
+	item.conn.RemoveSignal(item.signals)
+	close(item.signals)
+}
+
+func (item *Item) subscribe() {
+	item.conn.AddMatchSignal(
+		dbus.WithMatchInterface(StatusNotifierItemInterface),
+		dbus.WithMatchMember("NewTitle"),
+		dbus.WithMatchSender(item.uniqueName),
+	)
+
+	item.conn.AddMatchSignal(
+		dbus.WithMatchInterface(StatusNotifierItemInterface),
+		dbus.WithMatchMember("NewToolTip"),
+		dbus.WithMatchSender(item.uniqueName),
+	)
+
+	item.conn.AddMatchSignal(
+		dbus.WithMatchInterface(StatusNotifierItemInterface),
+		dbus.WithMatchMember("NewStatus"),
+		dbus.WithMatchSender(item.uniqueName),
+	)
+
+	item.conn.AddMatchSignal(
+		dbus.WithMatchInterface(StatusNotifierItemInterface),
+		dbus.WithMatchMember("NewIcon"),
+		dbus.WithMatchSender(item.uniqueName),
+	)
+
+	item.conn.AddMatchSignal(
+		dbus.WithMatchInterface(StatusNotifierItemInterface),
+		dbus.WithMatchMember("NewOverlayIcon"),
+		dbus.WithMatchSender(item.uniqueName),
+	)
+
+	item.conn.AddMatchSignal(
+		dbus.WithMatchInterface(StatusNotifierItemInterface),
+		dbus.WithMatchMember("NewAttentionIcon"),
+		dbus.WithMatchSender(item.uniqueName),
+	)
+
+	item.conn.Signal(item.signals)
+
+	go func() {
+		for signal := range item.signals {
+			if signal.Sender != item.uniqueName {
+				continue
+			}
+
+			item.handleSignal(signal)
+			item.onUpdate()
+		}
+	}()
+}
+
+func (item *Item) handleSignal(signal *dbus.Signal) {
+	switch signal.Name {
+	case StatusNotifierItemInterface + ".NewTitle":
+		item.updateTitle()
+	case StatusNotifierItemInterface + ".NewToolTip":
+		item.updateTooltip()
+	case StatusNotifierItemInterface + ".NewStatus":
+		item.updateStatus()
+	case StatusNotifierItemInterface + ".NewIcon":
+		item.updateIcon()
+	case StatusNotifierItemInterface + ".NewOverlayIcon":
+		item.updateOverlayIcon()
+	case StatusNotifierItemInterface + ".NewAttentionIcon":
+		item.updateAttentionIcon()
+	}
+}
+
+// updateTitle initializes or updates Title of the item.
+func (item *Item) updateTitle() {
+	title, err := item.object.GetProperty(StatusNotifierItemInterface + ".Title")
+	if err == nil {
+		title.Store(&item.Title)
+	}
+}
+
+// updateTooltip initializes or updates Tooltip of the item.
+func (item *Item) updateTooltip() {
+	tooltip, err := item.object.GetProperty(StatusNotifierItemInterface + ".ToolTip")
+	if err == nil {
+		// Format of tooltip is as follows
+		//
+		//  [<icon-name>, <icon>, <tooltip>, <description>]
+		//
+		// We are interested in the 3rd item, as it is a text representation of the
+		// tooltip.
+		value := tooltip.Value().([]any)
+
+		if len(value) >= 3 {
+			tooltipStr, ok := value[2].(string)
+			if ok {
+				item.Tooltip = tooltipStr
+			}
+		}
+	}
+}
+
+// updateStatus initializes or updates Status of the item.
+func (item *Item) updateStatus() {
+	status, err := item.object.GetProperty(StatusNotifierItemInterface + ".Status")
+	if err == nil {
+		status.Store(&item.Status)
+	}
+}
+
+// updateIcon initializes or updates IconName and IconPixmap of the item.
+func (item *Item) updateIcon() {
+	iconName, err := item.object.GetProperty(StatusNotifierItemInterface + ".IconName")
+	if err == nil {
+		iconName.Store(&item.IconName)
+	}
+
+	iconPixmap, err := item.object.GetProperty(StatusNotifierItemInterface + ".IconPixmap")
+	if err == nil {
+		iconset, err := NewIconSetFromDBusProperty(iconPixmap.Value())
+		if err == nil {
+			item.IconPixmap = iconset
+		}
+	}
+}
+
+// updateOverlayIcon initializes or updates OverlayIconName and
+// OverlayIconPixmap of the item.
+func (item *Item) updateOverlayIcon() {
+	overlayIconName, err := item.object.GetProperty(StatusNotifierItemInterface + ".OverlayIconName")
+	if err == nil {
+		overlayIconName.Store(&item.OverlayIconName)
+	}
+
+	overlayIconPixmap, err := item.object.GetProperty(StatusNotifierItemInterface + ".OverlayIconPixmap")
+	if err == nil {
+		iconset, err := NewIconSetFromDBusProperty(overlayIconPixmap.Value())
+		if err == nil {
+			item.OverlayIconPixmap = iconset
+		}
+	}
+}
+
+// updateAttentionIcon initializes or updates AttentionIconName,
+// AttentionIconPixmap, and AttentionMovieName of the item.
+func (item *Item) updateAttentionIcon() {
+	attentionIconName, err := item.object.GetProperty(StatusNotifierItemInterface + ".AttentionIconName")
+	if err == nil {
+		attentionIconName.Store(&item.AttentionIconName)
+	}
+
+	attentionIconPixmap, err := item.object.GetProperty(StatusNotifierItemInterface + ".AttentionIconPixmap")
+	if err == nil {
+		iconset, err := NewIconSetFromDBusProperty(attentionIconPixmap.Value())
+		if err == nil {
+			item.AttentionIconPixmap = iconset
+		}
+	}
+
+	attentionMovieName, err := item.object.GetProperty(StatusNotifierItemInterface + ".AttentionMovieName")
+	if err == nil {
+		attentionMovieName.Store(&item.AttentionMovieName)
+	}
 }
 
 // uniqueNameFromDBusSignal retrieves unique name of the StatusNotifierItem

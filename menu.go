@@ -88,3 +88,26 @@ func (m *Menu) Event(targetID int32, eventID string, data any, timestamp uint32)
 		timestamp,
 	).Err
 }
+
+func (m *Menu) AboutToShow(target *LayoutNode) (bool, error) {
+	call := m.object.Call(
+		MenuInterface+".AboutToShow",
+		dbus.Flags(64),
+		target.ID,
+	)
+
+	if call.Err != nil {
+		return false, fmt.Errorf("about to show: %w", call.Err)
+	}
+
+	if len(call.Body) != 1 {
+		return false, fmt.Errorf("about to show: invalid response format")
+	}
+
+	needUpdate, ok := call.Body[0].(bool)
+	if !ok {
+		return false, fmt.Errorf("about to show: invalid response format")
+	}
+
+	return needUpdate, nil
+}

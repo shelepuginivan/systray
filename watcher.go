@@ -15,6 +15,14 @@ const (
 	StatusNotifierWatcherPath      = "/StatusNotifierWatcher"
 )
 
+// Watcher implements [StatusNotifierWatcher]. It monitors instances of
+// [StatusNotifierItem] and [StatusNotifierHost].
+//
+// Exactly one watcher instance should be present on D-Bus at a time.
+//
+// [StatusNotifierWatcher]: https://www.freedesktop.org/wiki/Specifications/StatusNotifierItem/StatusNotifierWatcher/
+// [StatusNotifierItem]: https://www.freedesktop.org/wiki/Specifications/StatusNotifierItem/StatusNotifierItem/
+// [StatusNotifierHost]: https://www.freedesktop.org/wiki/Specifications/StatusNotifierItem/StatusNotifierHost/
 type Watcher struct {
 	closed  bool
 	conn    *dbus.Conn
@@ -24,6 +32,7 @@ type Watcher struct {
 	items   []string
 }
 
+// NewWatcher returns a new instance of [Watcher].
 func NewWatcher(conn *dbus.Conn) *Watcher {
 	return &Watcher{
 		closed:  false,
@@ -32,6 +41,12 @@ func NewWatcher(conn *dbus.Conn) *Watcher {
 	}
 }
 
+// Listen requests name org.kde.StatusNotifierWatcher on D-Bus and starts
+// monitoring hosts and items.
+//
+// If another watcher already present on D-Bus, error is returned.
+//
+// If Listen is called after [Watcher.Close], an error is returned.
 func (w *Watcher) Listen() error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -59,6 +74,10 @@ func (w *Watcher) Listen() error {
 	return nil
 }
 
+// Close releases name org.kde.StatusNotifierWatcher from D-Bus and
+// unsubscribes from signals.
+//
+// Watcher cannot be reused after Close was called.
 func (w *Watcher) Close() error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -104,6 +123,15 @@ func (w *Watcher) Close() error {
 	return nil
 }
 
+// RegisterStatusNotifierItem registers StatusNotifierItem into the watcher.
+//
+// Name is either a unique name (e.g. :1.50), or a path
+// (e.g. /org/ayatana/NotificationItem/<appname>). If name is a unique name,
+// path defaults to /StatusNotifierItem. Format of the resulting identifier is
+// <name>/<path> (e.g. :1.402/StatusNotifierItem). This identifier is emitted to
+// running StatusNotifierHost instances.
+//
+// This method is exported to D-Bus.
 func (w *Watcher) RegisterStatusNotifierItem(name string, sender dbus.Sender) *dbus.Error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -136,6 +164,13 @@ func (w *Watcher) RegisterStatusNotifierItem(name string, sender dbus.Sender) *d
 	return nil
 }
 
+// RegisterStatusNotifierHost registers StatusNotifierHost into the watcher.
+//
+// Name is the full name of host, e.g. StatusNotifierHost-4005. Every
+// NotificationHost instance that intends to display StatusNotifierItem
+// representations should register to StatusNotifierWatcher with this method.
+//
+// This method is exported to D-Bus.
 func (w *Watcher) RegisterStatusNotifierHost(name string) *dbus.Error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -162,6 +197,8 @@ func (w *Watcher) RegisterStatusNotifierHost(name string) *dbus.Error {
 	return nil
 }
 
+// subscribe monitors org.freedesktop.DBus.NameOwnerChanged signals and
+// unregisters hosts and items when they disappear from D-Bus.
 func (w *Watcher) subscribe() {
 	w.conn.Signal(w.signals)
 
@@ -193,6 +230,8 @@ func (w *Watcher) subscribe() {
 	}()
 }
 
+// tryUnregisterHost unregisters StatusNotifierHost by name if it was
+// previously registered.
 func (w *Watcher) tryUnregisterHost(name string) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -222,6 +261,8 @@ func (w *Watcher) tryUnregisterHost(name string) {
 	w.exportProperties()
 }
 
+// tryUnregisterItem unregisters StatusNotifierItem by name if it was
+// previously registered.
 func (w *Watcher) tryUnregisterItem(name string) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -253,6 +294,7 @@ func (w *Watcher) tryUnregisterItem(name string) {
 	w.exportProperties()
 }
 
+// exportProperties exports properties of StatusNotifierWatcher to D-Bus.
 func (w *Watcher) exportProperties() {
 	prop.Export(w.conn, StatusNotifierWatcherPath, prop.Map{
 		StatusNotifierWatcherInterface: map[string]*prop.Prop{

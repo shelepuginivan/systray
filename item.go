@@ -139,6 +139,10 @@ func (item *Item) OnUpdate(callback func()) {
 	item.onUpdate = callback
 }
 
+func (item *Item) GetMenu() (*Menu, error) {
+	return NewMenu(item.conn, item.uniqueName, item.Menu)
+}
+
 // ContextMenu asks the status notifier item to show a context menu.
 //
 // This is typically a consequence of user input, such as mouse right click

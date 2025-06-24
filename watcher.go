@@ -90,7 +90,7 @@ func (w *Watcher) RegisterStatusNotifierItem(name string, sender dbus.Sender) *d
 	w.items = append(w.items, identifier)
 
 	// Watch for name owner changes.
-	// Whenever name dissapears, D-Bus will send NameOwnerChanged signal with
+	// Whenever name disappears, D-Bus will send NameOwnerChanged signal with
 	// empty NewOwner argument. In this case, item should be unregistered.
 	w.conn.AddMatchSignal(
 		dbus.WithMatchInterface("org.freedesktop.DBus"),
@@ -119,7 +119,7 @@ func (w *Watcher) RegisterStatusNotifierHost(name string) *dbus.Error {
 	w.exportProperties()
 
 	// Watch for name owner changes.
-	// Whenever name dissapears, D-Bus will send NameOwnerChanged signal with
+	// Whenever name disappears, D-Bus will send NameOwnerChanged signal with
 	// empty NewOwner argument. In this case, item should be unregistered.
 	w.conn.AddMatchSignal(
 		dbus.WithMatchInterface("org.freedesktop.DBus"),

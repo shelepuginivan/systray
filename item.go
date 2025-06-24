@@ -101,7 +101,7 @@ func NewItemWithObjectPath(conn *dbus.Conn, uniqueName string, objectPath string
 	item.updateAttentionIcon()
 
 	// Subscribe to update signals.
-	// This is required to update fields when neccessary.
+	// This is required to update fields when necessary.
 	item.subscribe()
 
 	return &item, nil

@@ -66,6 +66,15 @@ func (h *Host) Listen() error {
 		return fmt.Errorf("listen: name %s already taken", h.name)
 	}
 
+	// Register host in the watcher.
+	call := h.conn.Object(
+		StatusNotifierWatcherInterface,
+		StatusNotifierWatcherPath,
+	).Call("RegisterStatusNotifierHost", 0, h.name)
+	if call.Err != nil {
+		return fmt.Errorf("listen: failed to register host: %w", call.Err)
+	}
+
 	h.getInitialItems()
 	return h.subscribe()
 }

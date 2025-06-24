@@ -18,7 +18,7 @@ const (
 type Watcher struct {
 	closed  bool
 	conn    *dbus.Conn
-	mu      sync.RWMutex
+	mu      sync.Mutex
 	signals chan *dbus.Signal
 	hosts   []string
 	items   []string

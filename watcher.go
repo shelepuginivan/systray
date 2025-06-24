@@ -68,6 +68,37 @@ func (w *Watcher) Close() error {
 		return err
 	}
 
+	for _, host := range w.hosts {
+		w.conn.RemoveMatchSignal(
+			dbus.WithMatchInterface("org.freedesktop.DBus"),
+			dbus.WithMatchSender("org.freedesktop.DBus"),
+			dbus.WithMatchMember("NameOwnerChanged"),
+			dbus.WithMatchArg(0, host),
+		)
+	}
+
+	for _, item := range w.items {
+		// Since items are stored as
+		//
+		//  <uniqueName>/<path>
+		//
+		// and signals match against uniqueName, we need to extract uniqueName.
+		uniqueName, _, err := uniqueNameAndPathFromItemName(item)
+		if err != nil {
+			continue
+		}
+
+		w.conn.RemoveMatchSignal(
+			dbus.WithMatchInterface("org.freedesktop.DBus"),
+			dbus.WithMatchSender("org.freedesktop.DBus"),
+			dbus.WithMatchMember("NameOwnerChanged"),
+			dbus.WithMatchArg(0, uniqueName),
+		)
+	}
+
+	w.conn.RemoveSignal(w.signals)
+	close(w.signals)
+
 	w.closed = true
 
 	return nil

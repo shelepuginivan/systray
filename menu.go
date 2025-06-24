@@ -68,3 +68,14 @@ func (m *Menu) GetLayout(parentID int, recursionDepth int, propertyNames []strin
 
 	return revision, menu, nil
 }
+
+func (m *Menu) Event(targetID int32, eventID string, data any, timestamp uint32) error {
+	return m.object.Call(
+		MenuInterface+".Event",
+		dbus.Flags(64),
+		targetID,
+		eventID,
+		dbus.MakeVariant(data),
+		timestamp,
+	).Err
+}

@@ -40,3 +40,31 @@ func NewMenu(conn *dbus.Conn, name, path string) (*Menu, error) {
 
 	return &menu, nil
 }
+
+func (m *Menu) GetLayout(parentID int, recursionDepth int, propertyNames []string) (uint32, *LayoutNode, error) {
+	call := m.object.Call(
+		MenuInterface+".GetLayout",
+		dbus.Flags(64),
+		parentID, recursionDepth, propertyNames,
+	)
+
+	if call.Err != nil {
+		return 0, nil, call.Err
+	}
+
+	if len(call.Body) != 2 {
+		return 0, nil, fmt.Errorf("layout: invalid response body format")
+	}
+
+	revision, ok := call.Body[0].(uint32)
+	if !ok {
+		return 0, nil, fmt.Errorf("layout: invalid revision type")
+	}
+
+	menu, err := NewLayoutNode(call.Body[1])
+	if err != nil {
+		return revision, nil, fmt.Errorf("layout: %w", err)
+	}
+
+	return revision, menu, nil
+}

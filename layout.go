@@ -6,12 +6,16 @@ import (
 	"github.com/godbus/dbus/v5"
 )
 
+// LayoutNode represents entry of the menu layout.
+//
+// The menu layout is recursive.
 type LayoutNode struct {
 	ID         int32
 	Properties map[string]any
 	Children   []*LayoutNode
 }
 
+// NewLayoutNode parses menu layout from data.
 func NewLayoutNode(data any) (*LayoutNode, error) {
 	arr, ok := data.([]any)
 	if !ok || len(arr) != 3 {

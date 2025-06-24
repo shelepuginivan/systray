@@ -118,7 +118,15 @@ func (w *Watcher) RegisterStatusNotifierHost(name string) *dbus.Error {
 	w.conn.Emit(StatusNotifierWatcherPath, StatusNotifierWatcherInterface+".StatusNotifierHostRegistered", name)
 	w.exportProperties()
 
-	// TODO: watch this name.
+	// Watch for name owner changes.
+	// Whenever name dissapears, D-Bus will send NameOwnerChanged signal with
+	// empty NewOwner argument. In this case, item should be unregistered.
+	w.conn.AddMatchSignal(
+		dbus.WithMatchInterface("org.freedesktop.DBus"),
+		dbus.WithMatchSender("org.freedesktop.DBus"),
+		dbus.WithMatchMember("NameOwnerChanged"),
+		dbus.WithMatchArg(0, name),
+	)
 
 	return nil
 }
@@ -143,13 +151,43 @@ func (w *Watcher) subscribe() {
 			}
 
 			if newOwner == "" {
-				w.unregisterItem(name)
+				w.tryUnregisterHost(name)
+				w.tryUnregisterItem(name)
 			}
 		}
 	}()
 }
 
-func (w *Watcher) unregisterItem(name string) {
+func (w *Watcher) tryUnregisterHost(name string) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	identifier := ""
+	identifierIndex := -1
+
+	for idx, host := range w.hosts {
+		if host == name {
+			identifier = host
+			identifierIndex = idx
+		}
+	}
+
+	if identifier == "" {
+		return
+	}
+
+	w.conn.RemoveMatchSignal(
+		dbus.WithMatchInterface("org.freedesktop.DBus"),
+		dbus.WithMatchSender("org.freedesktop.DBus"),
+		dbus.WithMatchMember("NameOwnerChanged"),
+		dbus.WithMatchArg(0, name),
+	)
+
+	w.hosts = append(w.hosts[:identifierIndex], w.hosts[identifierIndex+1:]...)
+	w.exportProperties()
+}
+
+func (w *Watcher) tryUnregisterItem(name string) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 

@@ -167,6 +167,10 @@ func (w *Watcher) subscribe() {
 
 	go func() {
 		for signal := range w.signals {
+			if signal.Name != "org.freedesktop.DBus.NameOwnerChanged" {
+				continue
+			}
+
 			if len(signal.Body) < 3 {
 				continue
 			}

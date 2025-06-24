@@ -139,6 +139,7 @@ func (item *Item) OnUpdate(callback func()) {
 	item.onUpdate = callback
 }
 
+// Menu returns [Menu] object associated with item.
 func (item *Item) Menu() (*Menu, error) {
 	return NewMenu(item.conn, item.uniqueName, item.MenuPath)
 }

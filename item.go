@@ -39,8 +39,8 @@ type Item struct {
 	AttentionIconPixmap *IconSet
 	AttentionMovieName  string
 
-	IsMenu bool
-	Menu   string
+	IsMenu   bool
+	MenuPath string
 }
 
 // NewItem returns new [Item] from its unique D-Bus name.
@@ -89,7 +89,7 @@ func NewItemWithObjectPath(conn *dbus.Conn, uniqueName string, objectPath string
 
 	menu, err := obj.GetProperty(StatusNotifierItemInterface + ".Menu")
 	if err == nil {
-		menu.Store(&item.Menu)
+		menu.Store(&item.MenuPath)
 	}
 
 	// Initialize fields that can be updated via signals.
@@ -139,8 +139,8 @@ func (item *Item) OnUpdate(callback func()) {
 	item.onUpdate = callback
 }
 
-func (item *Item) GetMenu() (*Menu, error) {
-	return NewMenu(item.conn, item.uniqueName, item.Menu)
+func (item *Item) Menu() (*Menu, error) {
+	return NewMenu(item.conn, item.uniqueName, item.MenuPath)
 }
 
 // ContextMenu asks the status notifier item to show a context menu.

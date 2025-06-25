@@ -179,6 +179,10 @@ func (h *Host) getInitialItems() {
 			continue
 		}
 
+		if h.isRegistered(uniqueName) {
+			continue
+		}
+
 		item, err := NewItemWithObjectPath(h.conn, uniqueName, objectPath)
 		if err != nil {
 			continue
@@ -223,13 +227,28 @@ func (h *Host) subscribe() error {
 	return nil
 }
 
+// isRegistered reports whether name is already registered in the host.
+func (h *Host) isRegistered(uniqueName string) bool {
+	_, exists := h.items[uniqueName]
+	return exists
+}
+
 // handleRegisteredSignal handles the
 // org.kde.StatusNotifierWatcher.StatusNotifierItemRegistered signal
 func (h *Host) handleRegisteredSignal(signal *dbus.Signal) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	item, err := NewItemFromDBusSignal(h.conn, signal)
+	uniqueName, objectPath, err := uniqueNameAndPathFromDBusSignal(signal)
+	if err != nil {
+		return
+	}
+
+	if h.isRegistered(uniqueName) {
+		return
+	}
+
+	item, err := NewItemWithObjectPath(h.conn, uniqueName, objectPath)
 	if err != nil {
 		return
 	}

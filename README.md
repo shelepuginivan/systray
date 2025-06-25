@@ -1,5 +1,9 @@
 # systray
 
+[![Go Reference](https://pkg.go.dev/badge/github.com/shelepuginivan/systray.svg)](https://pkg.go.dev/github.com/shelepuginivan/systray)
+[![Go Report Card](https://goreportcard.com/badge/github.com/shelepuginivan/systray)](https://goreportcard.com/report/github.com/shelepuginivan/systray)
+[![License: MIT](https://img.shields.io/badge/License-MIT-00cc00.svg)](https://github.com/shelepuginivan/systray/blob/main/LICENSE)
+
 Package `systray` is a toolkit-agnostic implementation of the
 [StatusNotifierItem](https://www.freedesktop.org/wiki/Specifications/StatusNotifierItem/)
 specification. It provides services for system tray hosts. This package does

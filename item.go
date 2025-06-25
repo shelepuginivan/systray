@@ -219,19 +219,6 @@ func NewItemWithObjectPath(conn *dbus.Conn, uniqueName string, objectPath string
 	return &item, nil
 }
 
-// NewItemFromDBusSignal returns new [Item] from D-Bus signal.
-//
-// It is intended to be used with signal
-// org.kde.StatusNotifierWatcher.StatusNotifierItemRegistered.
-func NewItemFromDBusSignal(conn *dbus.Conn, signal *dbus.Signal) (*Item, error) {
-	uniqueName, objectPath, err := uniqueNameAndPathFromDBusSignal(signal)
-	if err != nil {
-		return nil, fmt.Errorf("failed to resolve item: %w", err)
-	}
-
-	return NewItemWithObjectPath(conn, uniqueName, objectPath)
-}
-
 // BusName returns unique name of the item on D-Bus.
 func (item *Item) BusName() string {
 	return item.uniqueName

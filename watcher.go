@@ -145,12 +145,20 @@ func (w *Watcher) RegisterStatusNotifierItem(name string, sender dbus.Sender) *d
 		return nil
 	}
 
-	identifier := string(name) + StatusNotifierItemPath
+	objectPath := StatusNotifierItemPath
+	uniqueName := name
 
 	if strings.HasPrefix(name, "/") {
-		identifier = string(sender) + name
+		objectPath = name
+		uniqueName = string(sender)
 	}
 
+	// Check whether item actually implements StatusNotifierItem.
+	if _, err := NewItemWithObjectPath(w.conn, uniqueName, objectPath); err != nil {
+		return &dbus.ErrMsgUnknownInterface
+	}
+
+	identifier := uniqueName + objectPath
 	w.items = append(w.items, identifier)
 
 	// Watch for name owner changes.

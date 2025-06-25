@@ -12,6 +12,48 @@ const (
 	StatusNotifierItemPath      = "/StatusNotifierItem"
 )
 
+type ItemCategory string
+
+// StatusNotifierItem categories.
+const (
+	// The item describes the status of a generic application, for instance the
+	// current state of a media player.
+	ItemCategoryApplicationStatus ItemCategory = "ApplicationStatus"
+
+	// The item describes the status of communication oriented applications, like
+	// an instant messenger or an email client.
+	ItemCategoryCommunications ItemCategory = "Communications"
+
+	// The item describes services of the system not seen as a stand alone
+	// application by the user, such as an indicator for the activity of a disk
+	// indexing service.
+	ItemCategorySystemServices ItemCategory = "SystemServices"
+
+	// The item describes the state and control of a particular hardware, such as
+	// an indicator of the battery charge or sound card volume control.
+	ItemCategoryHardware ItemCategory = "Hardware"
+)
+
+type ItemStatus string
+
+// StatusNotifierItem statuses.
+const (
+	// The item doesn't convey important information to the user, it can be
+	// considered an "idle" status and is likely that visualizations will choose
+	// to hide it.
+	ItemStatusPassive ItemStatus = "Passive"
+
+	// The item is active, is more important that the item will be shown in some
+	// way to the user.
+	ItemStatusActive ItemStatus = "Active"
+
+	// The item carries really important information for the user, such as battery
+	// charge running out and is wants to incentive the direct user intervention.
+	// Visualizations should emphasize in some way the items with NeedsAttention
+	// status.
+	ItemStatusNeedsAttention ItemStatus = "NeedsAttention"
+)
+
 const getProperty = "org.freedesktop.DBus.Properties.Get"
 
 // Item represents system tray item and implements [StatusNotifierItem].
@@ -24,22 +66,83 @@ type Item struct {
 	uniqueName string
 	onUpdate   func()
 
-	ID       string
-	Title    string
-	Tooltip  string
-	Category string
-	Status   string
+	// Unique identifier for the application, such as the application name.
+	ID string
+
+	// Name that describes the application, can be more descriptive than ID.
+	Title string
+
+	// Extra information that can be visualized by a tooltip.
+	Tooltip string
+
+	// Category of the item.
+	Category ItemCategory
+
+	// Status of the item or of the associated application.
+	Status ItemStatus
+
+	// Windowing-system dependent identifier.
 	WindowID uint32
 
-	IconName            string
-	IconPixmap          *IconSet
-	OverlayIconName     string
-	OverlayIconPixmap   *IconSet
-	AttentionIconName   string
-	AttentionIconPixmap *IconSet
-	AttentionMovieName  string
+	// Icon that is used to visualize the item.
+	//
+	// IconName is a [Freedesktop-compliant] icon name. Visualizations should
+	// prefer this field over IconPixmap if both are available.
+	//
+	// [Freedesktop-compliant]: https://specifications.freedesktop.org/icon-naming-spec/latest/
+	IconName string
 
-	IsMenu   bool
+	// Icon that is used to visualize the item.
+	//
+	// IconPixmap is a binary representation of the icon.
+	IconPixmap *IconSet
+
+	// Icon that indicates extra information and can be used by the visualization
+	// as an overlay for the main icon.
+	//
+	// OverlayIconName is a [Freedesktop-compliant] overlay icon name.
+	// Visualizations should prefer this field over OverlayIconPixmap if both are
+	// available.
+	//
+	// [Freedesktop-compliant]: https://specifications.freedesktop.org/icon-naming-spec/latest/
+	OverlayIconName string
+
+	// Icon that indicates extra information and can be used by the visualization
+	// as an overlay for the main icon.
+	//
+	// OverlayIconPixmap is a binary representation of the overlay icon.
+	OverlayIconPixmap *IconSet
+
+	// Icon that can be used by the visualization to indicate that the item needs
+	// attention.
+	//
+	// AttentionIconName is a [Freedesktop-compliant] attention icon name.
+	// Visualizations should prefer this field over AttentionIconPixmap if both
+	// are available.
+	AttentionIconName string
+
+	// Icon that can be used by the visualization to indicate that the item needs
+	// attention.
+	//
+	// AttentionIconPixmap is a binary representation of the attention icon.
+	AttentionIconPixmap *IconSet
+
+	// Animation that can be used by the visualizations, either a
+	// [Freedesktop-compliant] icon or a full path.
+	//
+	// The visualization can choose between this field and AttentionIconPixmap to
+	// indicate that item needs attention.
+	//
+	// [Freedesktop-compliant]: https://specifications.freedesktop.org/icon-naming-spec/latest/
+	AttentionMovieName string
+
+	// Whether the item only supports context menu. Visualizations should prefer
+	// to show the [Item.Menu] or calling [Item.ContextMenu] instead of
+	// [Item.Activate].
+	IsMenu bool
+
+	// D-Bus path to an object which implements the com.canonical.dbusmenu
+	// interface.
 	MenuPath string
 }
 
@@ -74,7 +177,16 @@ func NewItemWithObjectPath(conn *dbus.Conn, uniqueName string, objectPath string
 
 	category, err := obj.GetProperty(StatusNotifierItemInterface + ".Category")
 	if err == nil {
-		category.Store(&item.Category)
+		switch category.String() {
+		case "Communications":
+			item.Category = ItemCategoryCommunications
+		case "SystemServices":
+			item.Category = ItemCategorySystemServices
+		case "Hardware":
+			item.Category = ItemCategoryHardware
+		default:
+			item.Category = ItemCategoryApplicationStatus
+		}
 	}
 
 	windowID, err := obj.GetProperty(StatusNotifierItemInterface + ".WindowId")
@@ -353,7 +465,14 @@ func (item *Item) updateTooltip() {
 func (item *Item) updateStatus() {
 	status, err := item.object.GetProperty(StatusNotifierItemInterface + ".Status")
 	if err == nil {
-		status.Store(&item.Status)
+		switch status.String() {
+		case "Passive":
+			item.Status = ItemStatusPassive
+		case "NeedsAttention":
+			item.Status = ItemStatusNeedsAttention
+		default:
+			item.Status = ItemStatusActive
+		}
 	}
 }
 

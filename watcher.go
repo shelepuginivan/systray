@@ -41,6 +41,11 @@ func NewWatcher(conn *dbus.Conn) *Watcher {
 	}
 }
 
+// RegisterHost registers [Host] to the watcher.
+func (w *Watcher) RegisterHost(host *Host) {
+	w.RegisterStatusNotifierHost(host.name)
+}
+
 // Listen requests name org.kde.StatusNotifierWatcher on D-Bus and starts
 // monitoring hosts and items.
 //

@@ -73,8 +73,8 @@ func (w *Watcher) Listen() error {
 		return fmt.Errorf("listen: failed to export %s: %w", StatusNotifierWatcherInterface, err)
 	}
 
+	w.subscribe()
 	w.exportProperties()
-	go w.subscribe()
 
 	return nil
 }

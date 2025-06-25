@@ -53,6 +53,9 @@ func (h *Host) Name() string {
 //
 // If Listen is called after [Host.Close], an error is returned.
 func (h *Host) Listen() error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
 	if h.closed {
 		return fmt.Errorf("listen: host is closed")
 	}
@@ -75,8 +78,13 @@ func (h *Host) Listen() error {
 		return fmt.Errorf("listen: failed to register host: %w", call.Err)
 	}
 
+	if err := h.subscribe(); err != nil {
+		return fmt.Errorf("listen: %w", err)
+	}
+
 	h.getInitialItems()
-	return h.subscribe()
+
+	return nil
 }
 
 // Close releases name of the host from D-Bus and unsubscribes from signals.
@@ -158,9 +166,6 @@ func (h *Host) OnUnregistered(callback func(*Item)) {
 
 // getInitialItems retrieves items that are already registered.
 func (h *Host) getInitialItems() {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-
 	watcherObj := h.conn.Object(StatusNotifierWatcherInterface, StatusNotifierWatcherPath)
 
 	property, err := watcherObj.GetProperty(StatusNotifierWatcherInterface + ".RegisteredStatusNotifierItems")

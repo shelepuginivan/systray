@@ -37,6 +37,8 @@ func main() {
 	watcher := systray.NewWatcher(conn)
 	host := systray.NewHost(conn, os.Getpid())
 
+	watcher.RegisterHost(host)
+
 	host.OnRegistered(func(item *systray.Item) {
 		log.Printf("%s (%s) is registered\n", item.Title, item.BusName())
 	})

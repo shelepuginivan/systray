@@ -232,6 +232,11 @@ func NewItemFromDBusSignal(conn *dbus.Conn, signal *dbus.Signal) (*Item, error) 
 	return NewItemWithObjectPath(conn, uniqueName, objectPath)
 }
 
+// BusName returns unique name of the item on D-Bus.
+func (item *Item) BusName() string {
+	return item.uniqueName
+}
+
 // OnUpdate registers callback that runs whenever item properties are updated.
 //
 // The following signals with the respective update fields are specified by the

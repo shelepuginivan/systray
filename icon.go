@@ -7,9 +7,14 @@ import (
 
 // Icon represents icon of the system tray item.
 type Icon struct {
-	Width  int32
+	// Width of the icon.
+	Width int32
+
+	// Height of the icon.
 	Height int32
-	Bytes  []byte
+
+	// ARGB32 binary representation of the icon.
+	Bytes []byte
 }
 
 // IconSet represents a set of resolutions for an icon.

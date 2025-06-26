@@ -39,11 +39,11 @@ func main() {
 
 	watcher.RegisterHost(host)
 
-	host.OnRegistered(func(item *systray.Item) {
+	host.OnRegister(func(item *systray.Item) {
 		log.Printf("%s (%s) is registered\n", item.Title, item.BusName())
 	})
 
-	host.OnUnregistered(func(item *systray.Item) {
+	host.OnUnregister(func(item *systray.Item) {
 		log.Printf("%s (%s) is unregistered\n", item.Title, item.BusName())
 	})
 

@@ -13,14 +13,14 @@ import (
 // [StatusNotifierHost]: https://www.freedesktop.org/wiki/Specifications/StatusNotifierItem/StatusNotifierHost/
 // [StatusNotifierWatcher]: https://www.freedesktop.org/wiki/Specifications/StatusNotifierItem/StatusNotifierWatcher/
 type Host struct {
-	name           string
-	closed         bool
-	conn           *dbus.Conn
-	items          map[string]*Item
-	signals        chan *dbus.Signal
-	mu             sync.RWMutex
-	onRegistered   func(item *Item)
-	onUnregistered func(item *Item)
+	name         string
+	closed       bool
+	conn         *dbus.Conn
+	items        map[string]*Item
+	signals      chan *dbus.Signal
+	mu           sync.RWMutex
+	onRegister   func(item *Item)
+	onUnregister func(item *Item)
 }
 
 // NewHost returns a new [Host].
@@ -28,13 +28,13 @@ type Host struct {
 // Parameter id is used as a unique identifier for host name, such as PID.
 func NewHost(conn *dbus.Conn, id any) *Host {
 	h := &Host{
-		name:           fmt.Sprintf("org.kde.StatusNotifierHost-%v", id),
-		closed:         false,
-		conn:           conn,
-		items:          make(map[string]*Item),
-		signals:        make(chan *dbus.Signal, 64),
-		onRegistered:   func(*Item) {},
-		onUnregistered: func(*Item) {},
+		name:         fmt.Sprintf("org.kde.StatusNotifierHost-%v", id),
+		closed:       false,
+		conn:         conn,
+		items:        make(map[string]*Item),
+		signals:      make(chan *dbus.Signal, 64),
+		onRegister:   func(*Item) {},
+		onUnregister: func(*Item) {},
 	}
 
 	return h
@@ -48,8 +48,8 @@ func (h *Host) Name() string {
 // Listen requests name of the host on D-Bus, queries items that are already
 // registered, and subscribes to signals.
 //
-// This method should be called after [Host.OnRegistered] and
-// [Host.OnUnregistered] callbacks were set.
+// This method should be called after [Host.OnRegister] and
+// [Host.OnUnregister] callbacks were set.
 //
 // If Listen is called after [Host.Close], an error is returned.
 func (h *Host) Listen() error {
@@ -121,8 +121,8 @@ func (h *Host) Close() error {
 		item.close()
 	}
 
-	h.onRegistered = nil
-	h.onUnregistered = nil
+	h.onRegister = nil
+	h.onUnregister = nil
 	h.closed = true
 
 	return nil
@@ -144,26 +144,26 @@ func (h *Host) Items() []*Item {
 	return items
 }
 
-// OnRegistered sets callback that runs whenever a new item is registered.
+// OnRegister sets callback that runs whenever host registers a new item.
 //
-// Graphical tray hosts should draw item representation when OnRegistered
+// Graphical tray hosts should draw item representation when OnRegister
 // callback is called.
-func (h *Host) OnRegistered(callback func(*Item)) {
+func (h *Host) OnRegister(callback func(*Item)) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	h.onRegistered = callback
+	h.onRegister = callback
 }
 
-// OnUnregistered sets callback that runs whenever a new item is unregistered.
+// OnUnregister sets callback that runs whenever host unregisters an item.
 //
-// Graphical tray hosts should destroy item representation when OnUnregistered
+// Graphical tray hosts should destroy item representation when OnUnregister
 // callback is called.
-func (h *Host) OnUnregistered(callback func(*Item)) {
+func (h *Host) OnUnregister(callback func(*Item)) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	h.onUnregistered = callback
+	h.onUnregister = callback
 }
 
 // getInitialItems retrieves items that are already registered.
@@ -196,7 +196,7 @@ func (h *Host) getInitialItems() {
 		}
 
 		h.items[uniqueName] = item
-		h.onRegistered(item)
+		h.onRegister(item)
 	}
 }
 
@@ -261,7 +261,7 @@ func (h *Host) handleRegisteredSignal(signal *dbus.Signal) {
 	}
 
 	h.items[item.uniqueName] = item
-	h.onRegistered(item)
+	h.onRegister(item)
 }
 
 // handleUnregisteredSignal handles the
@@ -280,7 +280,7 @@ func (h *Host) handleUnregisteredSignal(signal *dbus.Signal) {
 		return
 	}
 
-	h.onUnregistered(item)
+	h.onUnregister(item)
 	item.close()
 	delete(h.items, uniqueName)
 }

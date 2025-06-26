@@ -121,6 +121,8 @@ func (h *Host) Close() error {
 		item.close()
 	}
 
+	h.onRegistered = nil
+	h.onUnregistered = nil
 	h.closed = true
 
 	return nil

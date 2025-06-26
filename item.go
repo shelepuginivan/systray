@@ -354,6 +354,8 @@ func (item *Item) close() {
 
 	item.conn.RemoveSignal(item.signals)
 	close(item.signals)
+
+	item.onUpdate = nil
 }
 
 func (item *Item) subscribe() {

@@ -131,12 +131,13 @@ func NewMenu(conn *dbus.Conn, name, path string) (*Menu, error) {
 	}
 
 	menu := Menu{
-		uniqueName:     name,
-		conn:           conn,
-		signals:        make(chan *dbus.Signal),
-		object:         obj,
-		onLayoutUpdate: func(int32) {},
-		onActivate:     func(int32) {},
+		uniqueName:         name,
+		conn:               conn,
+		signals:            make(chan *dbus.Signal),
+		object:             obj,
+		onLayoutUpdate:     func(int32) {},
+		onActivate:         func(int32) {},
+		onPropertiesUpdate: func([]*UpdatedProperties, []*RemovedProperties) {},
 	}
 
 	version, err := obj.GetProperty(MenuInterface + ".Version")

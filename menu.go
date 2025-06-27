@@ -170,7 +170,10 @@ func NewMenu(conn *dbus.Conn, name, path string) (*Menu, error) {
 //
 // propertyNames is the list of properties associated with layout nodes.
 // Special case is empty slice (or nil): all properties are returned.
-func (m *Menu) GetLayout(parentID int, recursionDepth int, propertyNames []string) (uint32, *LayoutNode, error) {
+//
+// The first value returned is the revision number of the layout, the second is
+// the layout itself.
+func (m *Menu) GetLayout(parentID int32, recursionDepth int, propertyNames []string) (uint32, *LayoutNode, error) {
 	call := m.object.Call(
 		MenuInterface+".GetLayout",
 		dbus.Flags(64),
